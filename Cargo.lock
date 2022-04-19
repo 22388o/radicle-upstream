@@ -4964,6 +4964,7 @@ dependencies = [
  "dashmap 5.2.0",
  "data-encoding",
  "directories 4.0.1",
+ "easy-parallel",
  "eip55",
  "either",
  "futures 0.3.21",

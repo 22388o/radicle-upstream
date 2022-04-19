@@ -30,6 +30,8 @@ pub fn filters(ctx: context::Context) -> BoxedFilter<(impl Reply,)> {
         .or(path("requests").and(request::filters(ctx.clone())))
         .or(track_filter(ctx.clone()))
         .or(patches_filter(ctx.clone()))
+        .or(publish_patch_event(ctx.clone()))
+        .or(get_patch_events(ctx.clone()))
         .or(untrack_filter(ctx.clone()))
         .or(user_filter(ctx))
         .boxed()
@@ -166,6 +168,75 @@ fn patches_filter(
         .and(warp::get())
         .and(http::with_context_unsealed(ctx))
         .and_then(handler::patches)
+}
+
+/// `PUT /<urn>/patch/<patch_id>/events`
+///
+/// Get the list of patches for the project.
+fn publish_patch_event(
+    ctx: context::Context,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    async fn handle(
+        urn: Urn,
+        patch_id: String,
+        event: serde_json::Value,
+        ctx: context::Unsealed,
+    ) -> Result<impl Reply, Rejection> {
+        let repo_path = crate::daemon::state::monorepo(ctx.peer.librad_peer());
+        // TODO validate patch_id
+        let repo = git2::Repository::open(repo_path).unwrap();
+        crate::events::write(
+            ctx.peer.librad_peer().peer_id(),
+            &repo,
+            &urn,
+            &format!("patch/{patch_id}"),
+            event,
+        )
+        .unwrap();
+        ctx.git_fetch.push_upstream_notes(urn.id).await.unwrap();
+
+        Ok(warp::reply::with_status(
+            warp::reply::reply(),
+            warp::http::StatusCode::CREATED,
+        ))
+    }
+    path::param::<Urn>()
+        .and(path("patches"))
+        .and(path::param::<String>())
+        .and(path("events"))
+        .and(path::end())
+        .and(warp::put())
+        .and(warp::body::json())
+        .and(http::with_context_unsealed(ctx))
+        .and_then(handle)
+}
+
+/// `GET /<urn>/patch/<patch_id>/events`
+///
+/// Get the list of patches for the project.
+fn get_patch_events(
+    ctx: context::Context,
+) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+    async fn handle(
+        urn: Urn,
+        patch_id: String,
+        ctx: context::Unsealed,
+    ) -> Result<impl Reply, Rejection> {
+        let repo_path = crate::daemon::state::monorepo(ctx.peer.librad_peer());
+        // TODO validate patch_id
+        let repo = git2::Repository::open(repo_path).unwrap();
+        let events = crate::events::read(&repo, &urn, &format!("patch/{patch_id}")).unwrap();
+
+        Ok(warp::reply::json(&events))
+    }
+    path::param::<Urn>()
+        .and(path("patches"))
+        .and(path::param::<String>())
+        .and(path("events"))
+        .and(path::end())
+        .and(warp::get())
+        .and(http::with_context_unsealed(ctx))
+        .and_then(handle)
 }
 
 /// Project handlers to implement conversion and translation between core domain and http request

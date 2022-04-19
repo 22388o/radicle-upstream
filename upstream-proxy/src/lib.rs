@@ -22,6 +22,7 @@ mod control;
 mod daemon;
 pub mod env;
 mod error;
+mod events;
 mod git_fetch;
 mod peer;
 mod shutdown_runner;

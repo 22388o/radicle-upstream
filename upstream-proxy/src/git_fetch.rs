@@ -22,6 +22,7 @@ pub async fn create(
     let (update_tx, update_rx) = async_broadcast::broadcast(32);
     let (identity_queue, identity_rx) = UniqueDelayQueue::new();
     let handle = Handle {
+        peer: peer.clone(),
         update_rx: update_rx.deactivate(),
         identity_queue: identity_queue.clone(),
         project_seed_store: project_seed_store.clone(),
@@ -50,6 +51,7 @@ pub async fn create(
 
 #[derive(Clone)]
 pub struct Handle {
+    peer: crate::peer::Peer,
     update_rx: async_broadcast::InactiveReceiver<Revision>,
     identity_queue: UniqueDelayQueue,
     project_seed_store: ProjectSeedStore,
@@ -73,6 +75,32 @@ impl Handle {
     /// Returns the URL of a seed node that replicates `identity`.
     pub fn get_seed(&self, identity: Revision) -> Option<rad_common::Url> {
         self.project_seed_store.get(identity)
+    }
+
+    // TODO doc
+    pub async fn push_upstream_notes(&self, identity: Revision) -> anyhow::Result<bool> {
+        let urn = link_identities::Urn::new(identity);
+        let monorepo_path = self.peer.paths().git_dir().to_owned();
+        let seed_url = match self.project_seed_store.get(identity) {
+            Some(seed_url) => seed_url,
+            None => return Ok(false),
+        };
+        let proj_seed_url = seed_url
+            .join(&urn.encode_id())
+            .expect("invalid Project URN");
+        let mut child = tokio::process::Command::new("git")
+            .current_dir(monorepo_path)
+            .args(["push", "--signed", "--atomic"])
+            .arg(proj_seed_url.to_string())
+            .arg(format!(
+                "+refs/namespaces/{}/refs/notes/upstream/*:refs/remotes/{}/notes/upstream/*",
+                urn.encode_id(),
+                self.peer.librad_peer().peer_id(),
+            ))
+            .spawn()
+            .context("failed to spawn git")?;
+        child.wait().await.context("`git fetch` failed")?;
+        Ok(true)
     }
 }
 

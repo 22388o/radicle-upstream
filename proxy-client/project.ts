@@ -309,4 +309,56 @@ export class Client {
       zod.array(patchSchema)
     );
   }
+
+  public async publishPatchEvent(
+    projectUrn: string,
+    // Patch ID starts with the remote peer ID and has the form
+    // `<origin per id>/<patch name>`
+    patchId: string,
+    event: PatchEvent
+  ): Promise<void> {
+    return this.fetcher.fetchOkNoContent({
+      method: "PUT",
+      path: `projects/${projectUrn}/patches/${patchId}/events`,
+      body: event,
+    });
+  }
+
+  public async patchEvents(
+    projectUrn: string,
+    patchId: string
+  ): Promise<PatchEventEnvelope[]> {
+    return this.fetcher.fetchOk(
+      {
+        method: "GET",
+        path: `projects/${projectUrn}/patches/${patchId}/events`,
+      },
+      zod.array(storedPatchEventSchema)
+    );
+  }
 }
+
+interface PatchEventEnvelope {
+  peer_id: string;
+  event: PatchEvent;
+}
+
+type PatchEvent =
+  | {
+      type: "setStatus";
+      data: { status: "open" | "rejected" };
+    }
+  | { type: "foo" };
+
+const patchEventSchema: zod.Schema<PatchEvent> = zod.union([
+  zod.object({
+    type: zod.literal("setStatus"),
+    data: zod.object({ status: zod.enum(["open", "rejected"]) }),
+  }),
+  zod.object({ type: zod.literal("foo") }),
+]);
+
+const storedPatchEventSchema: zod.Schema<PatchEventEnvelope> = zod.object({
+  peer_id: zod.string(),
+  event: patchEventSchema,
+});
