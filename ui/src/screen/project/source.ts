@@ -97,7 +97,7 @@ export const fetch = async (project: Project, peer: User): Promise<void> => {
       peer.peerId
     );
     const revisions = [...branches, ...tags];
-    const patches = await patch.getAll(project.urn);
+    const patches = await patch.getAll(project);
     const defaultBranch = branches.find(
       (branch: source.Branch) => branch.name === project.metadata.defaultBranch
     );

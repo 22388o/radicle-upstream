@@ -36,11 +36,12 @@ export function handle(patch: Patch): string {
 
 function inferStatus(
   events: proxyProject.PatchEventEnvelope[],
-  patchPeerId: string
+  patchPeerId: string,
+  delegates: string[]
 ): proxyProject.PatchStatus {
   const filteredEvents = events.filter(
     e =>
-      e.peer_id === patchPeerId &&
+      (e.peer_id === patchPeerId || delegates.includes(e.peer_id)) &&
       e.event.type === proxyProject.PatchEventType.SetStatus
   );
   const lastStatusUpdate = filteredEvents[0]?.event;
@@ -55,7 +56,7 @@ function inferStatus(
 
 async function makePatch(
   proxyPatch: proxyProject.Patch,
-  projectUrn: string
+  project: Project
 ): Promise<Patch> {
   const messageLines = proxyPatch.message ? proxyPatch.message.split("\n") : [];
   const title = messageLines.shift() || null;
@@ -69,10 +70,14 @@ async function makePatch(
 
   const merged = proxyPatch.mergeBase === proxyPatch.commit;
   const events = await proxy.client.project.patchEvents(
-    projectUrn,
+    project.urn,
     proxyPatch.id
   );
-  const status = inferStatus(events, proxyPatch.peer.peerId);
+  const status = inferStatus(
+    events,
+    proxyPatch.peer.peerId,
+    project.metadata.delegates
+  );
 
   return {
     id: proxyPatch.id,
@@ -89,9 +94,9 @@ async function makePatch(
 
 export const TAG_PREFIX = "radicle-patch/";
 
-export const getAll = async (projectUrn: string): Promise<Patch[]> => {
-  const proxyPatches = await proxy.client.project.patchList(projectUrn);
-  return Promise.all(proxyPatches.map(p => makePatch(p, projectUrn)));
+export const getAll = async (project: Project): Promise<Patch[]> => {
+  const proxyPatches = await proxy.client.project.patchList(project.urn);
+  return Promise.all(proxyPatches.map(p => makePatch(p, project)));
 };
 
 export const getDetails = async (
@@ -99,7 +104,7 @@ export const getDetails = async (
   peerId: string,
   id: string
 ): Promise<PatchDetails> => {
-  const patches = await getAll(project.urn);
+  const patches = await getAll(project);
   const patch = patches.find(patch => {
     return patch.peerId === peerId && patch.id === id;
   });
