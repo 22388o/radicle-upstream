@@ -328,32 +328,59 @@ export class Client {
     projectUrn: string,
     patchId: string
   ): Promise<PatchEventEnvelope[]> {
-    return this.fetcher.fetchOk(
-      {
-        method: "GET",
-        path: `projects/${projectUrn}/patches/${patchId}/events`,
-      },
-      zod.array(storedPatchEventSchema)
-    );
+    const response = await this.fetcher.fetch({
+      method: "GET",
+      path: `projects/${projectUrn}/patches/${patchId}/events`,
+    });
+
+    const responseBody = await response.json();
+
+    if (!Array.isArray(responseBody)) {
+      throw new Error("Expected array from GET events");
+    }
+
+    const events: PatchEventEnvelope[] = [];
+
+    responseBody.forEach((e: unknown) => {
+      const parsed = storedPatchEventSchema.safeParse(e);
+
+      if (parsed.success) {
+        events.push(parsed.data);
+      }
+    });
+
+    return events;
   }
 }
 
-interface PatchEventEnvelope {
+export interface PatchEventEnvelope {
   peer_id: string;
   event: PatchEvent;
 }
 
+export enum PatchStatus {
+  Closed = "closed",
+  Open = "open",
+  Rejected = "rejected",
+}
+
+export enum PatchEventType {
+  SetStatus = "setStatus",
+}
+
 type PatchEvent =
   | {
-      type: "setStatus";
-      data: { status: "open" | "rejected" };
+      type: PatchEventType.SetStatus;
+      data: { status: PatchStatus.Open | PatchStatus.Rejected };
     }
   | { type: "foo" };
 
 const patchEventSchema: zod.Schema<PatchEvent> = zod.union([
   zod.object({
-    type: zod.literal("setStatus"),
-    data: zod.object({ status: zod.enum(["open", "rejected"]) }),
+    type: zod.literal(PatchEventType.SetStatus),
+    data: zod.object({
+      status: zod.enum([PatchStatus.Open, PatchStatus.Rejected]),
+    }),
   }),
   zod.object({ type: zod.literal("foo") }),
 ]);

@@ -68,6 +68,7 @@
         <div class="title-row" data-cy={`patch-card-title-${patch.id}`}>
           <p class="typo-text-bold typo-overflow-ellipsis" title={patch.id}>
             {#if patch.title}{patch.title}{:else}{patch.id}{/if}
+            Status: {patch.status}
           </p>
         </div>
         <div class="desc-row">

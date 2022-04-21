@@ -7,7 +7,7 @@
 import type { Project } from "ui/src/project";
 import * as source from "ui/src/source";
 import * as proxy from "ui/src/proxy";
-import type * as proxyProject from "proxy-client/project";
+import * as proxyProject from "proxy-client/project";
 import type { Identity } from "proxy-client/identity";
 
 export interface Patch {
@@ -19,6 +19,7 @@ export interface Patch {
   commit: string;
   mergeBase: string | null;
   merged: boolean;
+  status: proxyProject.PatchStatus;
 }
 
 export interface PatchDetails {
@@ -33,7 +34,29 @@ export function handle(patch: Patch): string {
   return `${patch.peerId}/${patch.id}`;
 }
 
-function makePatch(proxyPatch: proxyProject.Patch): Patch {
+function inferStatus(
+  events: proxyProject.PatchEventEnvelope[],
+  patchPeerId: string
+): proxyProject.PatchStatus {
+  const filteredEvents = events.filter(
+    e =>
+      e.peer_id === patchPeerId &&
+      e.event.type === proxyProject.PatchEventType.SetStatus
+  );
+  const lastStatusUpdate = filteredEvents[0]?.event;
+
+  return (
+    (lastStatusUpdate &&
+      lastStatusUpdate.type === proxyProject.PatchEventType.SetStatus &&
+      lastStatusUpdate.data.status) ||
+    proxyProject.PatchStatus.Open
+  );
+}
+
+async function makePatch(
+  proxyPatch: proxyProject.Patch,
+  projectUrn: string
+): Promise<Patch> {
   const messageLines = proxyPatch.message ? proxyPatch.message.split("\n") : [];
   const title = messageLines.shift() || null;
   // Throw away empty line that separates title from description
@@ -44,6 +67,13 @@ function makePatch(proxyPatch: proxyProject.Patch): Patch {
       ? proxyPatch.peer.status.user
       : null;
 
+  const merged = proxyPatch.mergeBase === proxyPatch.commit;
+  const events = await proxy.client.project.patchEvents(
+    projectUrn,
+    proxyPatch.id
+  );
+  const status = inferStatus(events, proxyPatch.peer.peerId);
+
   return {
     id: proxyPatch.id,
     peerId: proxyPatch.peer.peerId,
@@ -52,7 +82,8 @@ function makePatch(proxyPatch: proxyProject.Patch): Patch {
     description,
     commit: proxyPatch.commit,
     mergeBase: proxyPatch.mergeBase,
-    merged: proxyPatch.mergeBase === proxyPatch.commit,
+    status,
+    merged,
   };
 }
 
@@ -60,7 +91,7 @@ export const TAG_PREFIX = "radicle-patch/";
 
 export const getAll = async (projectUrn: string): Promise<Patch[]> => {
   const proxyPatches = await proxy.client.project.patchList(projectUrn);
-  return proxyPatches.map(makePatch);
+  return Promise.all(proxyPatches.map(p => makePatch(p, projectUrn)));
 };
 
 export const getDetails = async (

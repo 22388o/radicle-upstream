@@ -13,12 +13,14 @@
   import * as Patch from "ui/src/project/patch";
   import * as Session from "ui/src/session";
   import * as router from "ui/src/router";
+  import { PatchStatus } from "proxy-client/project";
 
   import ArrowBoxUpRightIcon from "design-system/icons/ArrowBoxUpRight.svelte";
   import Button from "design-system/Button.svelte";
   import Markdown from "design-system/Markdown.svelte";
   import MergeIcon from "design-system/icons/Merge.svelte";
   import RevisionIcon from "design-system/icons/Revision.svelte";
+  import CrossIcon from "design-system/icons/Cross.svelte";
 
   import CommandModal from "ui/App/SharedComponents/CommandModal.svelte";
   import UserIdentity from "ui/App/SharedComponents/UserIdentity.svelte";
@@ -30,12 +32,23 @@
   export let project: Project;
   export let patch: Patch.Patch;
   export let commits: GroupedCommitsHistory;
+  export let onUpdatePatchStatus: (
+    status: PatchStatus.Rejected | PatchStatus.Open
+  ) => unknown;
 
   const session = Session.unsealed();
 
   $: iconColor = patch.merged
     ? "var(--color-negative);"
     : "var(--color-positive);";
+
+  function rejectPatch() {
+    onUpdatePatchStatus(PatchStatus.Rejected);
+  }
+
+  function reopenPatch() {
+    onUpdatePatchStatus(PatchStatus.Open);
+  }
 </script>
 
 <style>
@@ -82,6 +95,7 @@
 </style>
 
 <div class="patch-page" data-cy="patch-page">
+  {patch.status}
   <BackButton
     style="padding: 1rem; z-index: 0;"
     on:arrowClick={() => router.pop()}>
@@ -153,6 +167,12 @@
           description="To merge this patch and publish the changes, run these commands in your working copy:">
           <Button icon={MergeIcon} on:click={toggleDropdown}>Merge</Button>
         </CommandModal>
+      {/if}
+      {#if !isDelegate(session.identity.urn, project) && patch.status === PatchStatus.Open}
+        <Button icon={CrossIcon} variant="destructive" on:click={rejectPatch}
+          >Reject patch</Button>
+      {:else if !isDelegate(session.identity.urn, project) && patch.status === PatchStatus.Rejected}
+        <Button variant="primary" on:click={reopenPatch}>Reopen patch</Button>
       {/if}
     </div>
   </div>

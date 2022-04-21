@@ -165,7 +165,7 @@ export class Fetcher {
     }
   }
 
-  private async fetch({
+  public async fetch({
     method,
     path,
     body,

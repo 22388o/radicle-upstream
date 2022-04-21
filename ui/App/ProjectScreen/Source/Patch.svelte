@@ -15,6 +15,9 @@
   import * as mutexExecutor from "ui/src/mutexExecutor";
   import * as notification from "ui/src/notification";
   import * as patch from "ui/src/project/patch";
+  import * as proxy from "ui/src/proxy";
+
+  import { PatchEventType, PatchStatus } from "proxy-client/project";
 
   import PatchLoaded from "./PatchLoaded.svelte";
 
@@ -48,6 +51,18 @@
     }
   }
 
+  async function setPatchStatus(
+    status: PatchStatus.Rejected | PatchStatus.Open
+  ) {
+    await proxy.client.project.publishPatchEvent(project.urn, id, {
+      type: PatchEventType.SetStatus,
+      data: {
+        status,
+      },
+    });
+    fetch(project, peerId, id);
+  }
+
   function watchPatchUpdates(): () => void {
     return localPeer.projectEvents.onValue(event => {
       if (event.urn.startsWith(project.urn)) {
@@ -66,5 +81,6 @@
   <PatchLoaded
     {project}
     patch={patchDetails.patch}
-    commits={patchDetails.commits} />
+    commits={patchDetails.commits}
+    onUpdatePatchStatus={setPatchStatus} />
 {/if}
