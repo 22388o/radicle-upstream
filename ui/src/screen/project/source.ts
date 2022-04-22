@@ -132,16 +132,16 @@ export function watchPatchListUpdates(): () => void {
   return localPeer.projectEvents.onValue(() => {
     const screen = get(screenStore);
     if (screen.status === remote.Status.Success) {
-      refreshPatches(screen.data.project.urn);
+      refreshPatches(screen.data.project);
     }
   });
 }
 
 const refreshPatchesExecutor = mutexExecutor.create();
-async function refreshPatches(urn: string): Promise<void> {
+async function refreshPatches(project: Project): Promise<void> {
   try {
     const patches = await refreshPatchesExecutor.run(async () => {
-      return await patch.getAll(urn);
+      return await patch.getAll(project);
     });
 
     if (patches) {

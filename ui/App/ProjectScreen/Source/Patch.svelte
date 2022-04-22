@@ -51,9 +51,7 @@
     }
   }
 
-  async function setPatchStatus(
-    status: PatchStatus.Rejected | PatchStatus.Open
-  ) {
+  async function setPatchStatus(status: PatchStatus.Closed | PatchStatus.Open) {
     await proxy.client.project.publishPatchEvent(project.urn, id, {
       type: PatchEventType.SetStatus,
       data: {

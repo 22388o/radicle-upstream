@@ -36,22 +36,27 @@ export function handle(patch: Patch): string {
 
 function inferStatus(
   events: proxyProject.PatchEventEnvelope[],
-  patchPeerId: string,
+  proxyPatch: proxyProject.Patch,
   delegates: string[]
 ): proxyProject.PatchStatus {
   const filteredEvents = events.filter(
     e =>
-      (e.peer_id === patchPeerId || delegates.includes(e.peer_id)) &&
+      (e.peer_id === proxyPatch.peer.peerId || delegates.includes(e.peer_id)) &&
       e.event.type === proxyProject.PatchEventType.SetStatus
   );
   const lastStatusUpdate = filteredEvents[0]?.event;
+  const merged = proxyPatch.mergeBase === proxyPatch.commit;
 
-  return (
-    (lastStatusUpdate &&
-      lastStatusUpdate.type === proxyProject.PatchEventType.SetStatus &&
-      lastStatusUpdate.data.status) ||
-    proxyProject.PatchStatus.Open
-  );
+  if (merged) {
+    return proxyProject.PatchStatus.Merged;
+  } else {
+    return (
+      (lastStatusUpdate &&
+        lastStatusUpdate.type === proxyProject.PatchEventType.SetStatus &&
+        lastStatusUpdate.data.status) ||
+      proxyProject.PatchStatus.Open
+    );
+  }
 }
 
 async function makePatch(
@@ -73,11 +78,7 @@ async function makePatch(
     project.urn,
     proxyPatch.id
   );
-  const status = inferStatus(
-    events,
-    proxyPatch.peer.peerId,
-    project.metadata.delegates
-  );
+  const status = inferStatus(events, proxyPatch, project.metadata.delegates);
 
   return {
     id: proxyPatch.id,

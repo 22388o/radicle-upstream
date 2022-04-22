@@ -8,6 +8,7 @@
 <script lang="ts">
   import type { Project } from "ui/src/project";
   import type { Patch } from "ui/src/project/patch";
+  import { PatchStatus } from "proxy-client/project";
 
   import { unreachable } from "ui/src/unreachable";
   import * as router from "ui/src/router";
@@ -20,7 +21,7 @@
 
   export let patches: Patch[];
   export let project: Project;
-  export let filter: "open" | "closed" | "all";
+  export let filter: "open" | "closed" | "merged" | "all";
 
   const defaultBranch = project.metadata.defaultBranch;
 
@@ -44,6 +45,10 @@
       value: "open",
     },
     {
+      title: "Merged",
+      value: "merged",
+    },
+    {
       title: "Closed",
       value: "closed",
     },
@@ -57,10 +62,19 @@
   $: {
     switch (filter) {
       case "open":
-        filteredPatches = patches.filter(patch => !patch.merged);
+        filteredPatches = patches.filter(
+          patch => patch.status === PatchStatus.Open
+        );
         break;
       case "closed":
-        filteredPatches = patches.filter(patch => patch.merged);
+        filteredPatches = patches.filter(
+          patch => patch.status === PatchStatus.Closed
+        );
+        break;
+      case "merged":
+        filteredPatches = patches.filter(
+          patch => patch.status === PatchStatus.Merged
+        );
         break;
       case "all":
         filteredPatches = patches;

@@ -8,7 +8,7 @@
 <script lang="ts">
   import * as Patch from "ui/src/project/patch";
 
-  import RevisionIcon from "design-system/icons/Revision.svelte";
+  import PatchIcon from "./PatchIcon.svelte";
 
   import CompareBranches from "./CompareBranches.svelte";
   import UserIdentity from "ui/App/SharedComponents/UserIdentity.svelte";
@@ -16,10 +16,6 @@
   export let patch: Patch.Patch;
   export let defaultBranch: string;
   export let patchUrl: string;
-
-  $: iconColor = patch.merged
-    ? "var(--color-negative)"
-    : "var(--color-positive)";
 </script>
 
 <style>
@@ -32,6 +28,10 @@
 
   .left {
     display: flex;
+  }
+
+  .icon {
+    margin-right: 8px;
   }
 
   .info-column {
@@ -62,13 +62,14 @@
 
 <div class="patch-card" data-cy={`patch-card-${patch.id}`}>
   <div class="left">
-    <RevisionIcon style={`margin-right: 0.5rem; fill: ${iconColor};`} />
+    <div class="icon">
+      <PatchIcon status={patch.status} />
+    </div>
     <div>
       <div class="info-column">
         <div class="title-row" data-cy={`patch-card-title-${patch.id}`}>
           <p class="typo-text-bold typo-overflow-ellipsis" title={patch.id}>
             {#if patch.title}{patch.title}{:else}{patch.id}{/if}
-            Status: {patch.status}
           </p>
         </div>
         <div class="desc-row">

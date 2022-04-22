@@ -19,7 +19,7 @@
   import Button from "design-system/Button.svelte";
   import Markdown from "design-system/Markdown.svelte";
   import MergeIcon from "design-system/icons/Merge.svelte";
-  import RevisionIcon from "design-system/icons/Revision.svelte";
+  import PatchIcon from "./PatchIcon.svelte";
   import CrossIcon from "design-system/icons/Cross.svelte";
 
   import CommandModal from "ui/App/SharedComponents/CommandModal.svelte";
@@ -33,21 +33,31 @@
   export let patch: Patch.Patch;
   export let commits: GroupedCommitsHistory;
   export let onUpdatePatchStatus: (
-    status: PatchStatus.Rejected | PatchStatus.Open
-  ) => unknown;
+    status: PatchStatus.Closed | PatchStatus.Open
+  ) => Promise<void>;
 
   const session = Session.unsealed();
 
-  $: iconColor = patch.merged
-    ? "var(--color-negative);"
-    : "var(--color-positive);";
+  let actionsDisabled = false;
 
-  function rejectPatch() {
-    onUpdatePatchStatus(PatchStatus.Rejected);
-  }
+  $: permissions = {
+    close:
+      (isDelegate(session.identity.urn, project) ||
+        patch.peerId === session.identity.peerId) &&
+      patch.status === PatchStatus.Open,
+    reopen:
+      (isDelegate(session.identity.urn, project) ||
+        patch.peerId === session.identity.peerId) &&
+      patch.status === PatchStatus.Closed,
+    merge:
+      isDelegate(session.identity.urn, project) &&
+      patch.status === PatchStatus.Open,
+  };
 
-  function reopenPatch() {
-    onUpdatePatchStatus(PatchStatus.Open);
+  async function updateStatus(status: PatchStatus.Closed | PatchStatus.Open) {
+    actionsDisabled = true;
+    await onUpdatePatchStatus(status);
+    actionsDisabled = false;
   }
 </script>
 
@@ -95,13 +105,12 @@
 </style>
 
 <div class="patch-page" data-cy="patch-page">
-  {patch.status}
   <BackButton
     style="padding: 1rem; z-index: 0;"
     on:arrowClick={() => router.pop()}>
     <div>
       <div class="title" data-cy="patch-title">
-        <RevisionIcon style={`fill: ${iconColor};`} />
+        <PatchIcon status={patch.status} />
         {#if patch}
           <h2>
             {#if patch.title}{patch.title}{:else}{patch.id}{/if}
@@ -155,7 +164,7 @@
           icon={ArrowBoxUpRightIcon}
           on:click={toggleDropdown}>Checkout patch</Button>
       </CommandModal>
-      {#if isDelegate(session.identity.urn, project) && !patch.merged}
+      {#if permissions.merge}
         <CommandModal
           dataCy="merge-patch-modal-toggle"
           let:prop={toggleDropdown}
@@ -168,11 +177,18 @@
           <Button icon={MergeIcon} on:click={toggleDropdown}>Merge</Button>
         </CommandModal>
       {/if}
-      {#if !isDelegate(session.identity.urn, project) && patch.status === PatchStatus.Open}
-        <Button icon={CrossIcon} variant="destructive" on:click={rejectPatch}
-          >Reject patch</Button>
-      {:else if !isDelegate(session.identity.urn, project) && patch.status === PatchStatus.Rejected}
-        <Button variant="primary" on:click={reopenPatch}>Reopen patch</Button>
+      {#if permissions.close}
+        <Button
+          icon={CrossIcon}
+          disabled={actionsDisabled}
+          variant="destructive"
+          on:click={() => updateStatus(PatchStatus.Closed)}>Close patch</Button>
+      {/if}
+      {#if permissions.reopen}
+        <Button
+          variant="primary"
+          disabled={actionsDisabled}
+          on:click={() => updateStatus(PatchStatus.Open)}>Reopen patch</Button>
       {/if}
     </div>
   </div>

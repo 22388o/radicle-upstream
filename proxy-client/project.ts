@@ -361,7 +361,7 @@ export interface PatchEventEnvelope {
 export enum PatchStatus {
   Closed = "closed",
   Open = "open",
-  Rejected = "rejected",
+  Merged = "merged",
 }
 
 export enum PatchEventType {
@@ -371,7 +371,7 @@ export enum PatchEventType {
 type PatchEvent =
   | {
       type: PatchEventType.SetStatus;
-      data: { status: PatchStatus.Open | PatchStatus.Rejected };
+      data: { status: PatchStatus.Open | PatchStatus.Closed };
     }
   | { type: "foo" };
 
@@ -379,7 +379,7 @@ const patchEventSchema: zod.Schema<PatchEvent> = zod.union([
   zod.object({
     type: zod.literal(PatchEventType.SetStatus),
     data: zod.object({
-      status: zod.enum([PatchStatus.Open, PatchStatus.Rejected]),
+      status: zod.enum([PatchStatus.Open, PatchStatus.Closed]),
     }),
   }),
   zod.object({ type: zod.literal("foo") }),
